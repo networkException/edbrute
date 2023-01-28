@@ -47,7 +47,7 @@ fn run_main() -> anyhow::Result<()> {
 }
 
 fn run_controller(
-    to_threads: Vec<SyncSender<u64>>,
+    to_threads: Vec<SyncSender<u128>>,
     from_threads: Receiver<WorkerMessage>,
 ) -> anyhow::Result<()> {
     let spinner = setup_spinner();
@@ -59,7 +59,7 @@ fn run_controller(
     let mut largest_keypair =
         saved_largest_keypair.unwrap_or_else(|| Keypair::generate(&mut rand::thread_rng()));
 
-    let mut largest_value = public_key_to_u64(&largest_keypair);
+    let mut largest_value = public_key_to_u128(&largest_keypair);
     for sender in &to_threads {
         sender.send(largest_value).unwrap();
     }
@@ -70,7 +70,7 @@ fn run_controller(
     while let Ok(keypair) = from_threads.recv() {
         match keypair {
             WorkerMessage::Largest(keypair) => {
-                let value = public_key_to_u64(&keypair);
+                let value = public_key_to_u128(&keypair);
 
                 if value > largest_value {
                     largest_value = value;
@@ -103,7 +103,7 @@ fn run_controller(
     Ok(())
 }
 
-fn run_worker(from_controller: Receiver<u64>, to_controller: SyncSender<WorkerMessage>) {
+fn run_worker(from_controller: Receiver<u128>, to_controller: SyncSender<WorkerMessage>) {
     let mut rng = rand::thread_rng();
     let mut largest_value = from_controller.recv().unwrap();
 
@@ -111,7 +111,7 @@ fn run_worker(from_controller: Receiver<u64>, to_controller: SyncSender<WorkerMe
     loop {
         for _ in 0..iteration_delta {
             let pair = Keypair::generate(&mut rng);
-            let value = public_key_to_u64(&pair);
+            let value = public_key_to_u128(&pair);
 
             if value > largest_value {
                 to_controller.send(WorkerMessage::Largest(pair)).unwrap();
@@ -144,8 +144,8 @@ fn serialize_keypair(keypair: &Keypair) -> String {
     )
 }
 
-fn public_key_to_u64(keypair: &Keypair) -> u64 {
-    u64::from_be_bytes(keypair.public.as_bytes()[0..8].try_into().unwrap())
+fn public_key_to_u128(keypair: &Keypair) -> u128 {
+    u128::from_be_bytes(keypair.public.as_bytes()[0..16].try_into().unwrap())
 }
 
 fn checkpoint_with_largest_keypair(
@@ -172,7 +172,7 @@ fn checkpoint_with_largest_keypair(
         keypairs.push(Keypair { public, secret })
     }
 
-    let starting_key = keypairs.into_iter().max_by_key(public_key_to_u64);
+    let starting_key = keypairs.into_iter().max_by_key(public_key_to_u128);
     Ok((checkpoint_file, starting_key))
 }
 
